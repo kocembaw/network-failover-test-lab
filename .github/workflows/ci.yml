@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    name: Configs, scripts and unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install FRR and ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y frr shellcheck
+
+      - name: Validate router configs (vtysh dry run)
+        run: |
+          for f in configs/*/frr.conf; do
+            echo "== $f"
+            sudo vtysh --dryrun --inputfile "$f"
+          done
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh images/router/*.sh
+
+      - name: Unit tests for failover-probe
+        run: python3 -m unittest discover -s tools/tests -v
+
+  images:
+    name: Build and smoke-test images
+    runs-on: ubuntu-24.04
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: bash scripts/build-images.sh
+
+      - name: Router starts FRR with the RA config
+        run: |
+          docker run -d --privileged --hostname RA --name ra lab-router:latest
+          for i in $(seq 1 30); do
+            if docker exec ra vtysh -c "show running-config" 2>/dev/null | grep -q "^hostname RA"; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec ra vtysh -c "show running-config" | tee running-config.txt
+          grep -q "^hostname RA" running-config.txt
+          grep -q "ospf router-id 10.0.0.1" running-config.txt
+          docker exec ra pgrep ospfd
+          docker exec ra ip -br link show eth0.10
+          docker exec ra cat /var/log/lab-boot.log
+
+      - name: Router container logs
+        if: always()
+        run: docker logs ra || true
+
+      - name: Host has the test tools
+        run: |
+          docker run --rm lab-host:latest sh -c \
+            'ping -V && iperf3 --version && tcpdump --version && failover-probe --help'

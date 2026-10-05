@@ -1,0 +1,6 @@
+# Working files created while testing; real evidence lives in results/evidence/
+/inject-failure.log
+/probe-*.log
+__pycache__/
+*.pyc
+.DS_Store

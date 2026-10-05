@@ -1,0 +1,6 @@
+# B1 - paste into GNS3: right-click node > Edit network configuration
+auto eth0
+iface eth0 inet static
+	address 10.2.10.10
+	netmask 255.255.255.0
+	gateway 10.2.10.1

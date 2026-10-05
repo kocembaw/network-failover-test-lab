@@ -1,0 +1,4 @@
+# VLAN subinterfaces created on boot by lab-router-start (router-on-a-stick).
+# Format: <parent interface> <VLAN ID>
+eth0 10
+eth0 20
